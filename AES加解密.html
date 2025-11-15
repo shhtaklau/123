@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AES-128-CBC 加解密工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .panel { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        textarea { width: 100%; height: 150px; margin: 10px 0; padding: 10px; }
+        input { width: 300px; padding: 8px; margin: 5px; }
+        button { padding: 10px 20px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .encrypt-btn { background: #28a745; }
+        .decrypt-btn { background: #dc3545; }
+        .copy-btn { background: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 AES-128-CBC 加解密工具</h1>
+        
+        <!-- 加密面板 -->
+        <div class="panel">
+            <h2>🔒 加密</h2>
+            <div>
+                <label>明文:</label><br>
+                <textarea id="plaintext" placeholder="请输入要加密的内容"></textarea>
+            </div>
+            <div>
+                <label>密钥 (可选，默认: 123456):</label><br>
+                <input type="text" id="encryptKey" value="123456" placeholder="输入加密密钥">
+            </div>
+            <button class="encrypt-btn" onclick="encryptText()">加密</button>
+            <button class="copy-btn" onclick="copyResult('ciphertext')">复制密文</button>
+            <div>
+                <label>加密结果:</label><br>
+                <textarea id="ciphertext" readonly placeholder="加密后的结果将显示在这里"></textarea>
+            </div>
+        </div>
+
+        <!-- 解密面板 -->
+        <div class="panel">
+            <h2>🔓 解密</h2>
+            <div>
+                <label>密文:</label><br>
+                <textarea id="decryptCiphertext" placeholder="请输入要解密的密文"></textarea>
+            </div>
+            <button class="decrypt-btn" onclick="decryptText()">解密</button>
+            <button class="copy-btn" onclick="copyResult('decryptResult')">复制明文</button>
+            <div>
+                <label>解密结果:</label><br>
+                <textarea id="decryptResult" readonly placeholder="解密后的结果将显示在这里"></textarea>
+            </div>
+        </div>
+
+        <!-- 批量测试 -->
+        <div class="panel">
+            <h2>🧪 测试功能</h2>
+            <button onclick="testEncryption()">测试加密解密</button>
+            <button onclick="clearAll()">清空所有</button>
+            <div id="testResult"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 加密函数 ====================
+        function encryptText() {
+            const plaintext = document.getElementById('plaintext').value;
+            const key = document.getElementById('encryptKey').value || '123456';
+            
+            if (!plaintext) {
+                alert('请输入要加密的内容');
+                return;
+            }
+
+            try {
+                // 使用当前时间戳作为IV
+                const iv = Date.now().toString();
+                
+                // 加密处理
+                const encryptedData = encryptAES(plaintext, key, iv);
+                
+                // 构建完整密文格式
+                const keyHex = stringToHex(`$#${key}#$`);
+                const ivHex = stringToHex(iv);
+                const fullCiphertext = keyHex + encryptedData + ivHex;
+                
+                document.getElementById('ciphertext').value = fullCiphertext;
+                document.getElementById('decryptCiphertext').value = fullCiphertext; // 自动填充到解密框
+                
+                console.log('加密成功:', { key, iv, ciphertext: fullCiphertext });
+            } catch (error) {
+                alert('加密失败: ' + error.message);
+                console.error('加密错误:', error);
+            }
+        }
+
+        // AES加密核心函数
+        function encryptAES(plaintext, key, iv) {
+            // 密钥和IV填充到16字节
+            const paddedKey = key.padEnd(16, '0');
+            const paddedIv = iv.padEnd(16, '0');
+            
+            const keyBytes = CryptoJS.enc.Utf8.parse(paddedKey);
+            const ivBytes = CryptoJS.enc.Utf8.parse(paddedIv);
+            
+            // 执行AES加密
+            const encrypted = CryptoJS.AES.encrypt(plaintext, keyBytes, {
+                iv: ivBytes,
+                mode: CryptoJS.mode.CBC,
+                padding: CryptoJS.pad.Pkcs7
+            });
+            
+            return encrypted.ciphertext.toString(CryptoJS.enc.Hex);
+        }
+
+        // ==================== 解密函数 ====================
+        function decryptText() {
+            const ciphertext = document.getElementById('decryptCiphertext').value;
+            
+            if (!ciphertext) {
+                alert('请输入要解密的密文');
+                return;
+            }
+
+            try {
+                const result = decryptAesBCB(ciphertext);
+                document.getElementById('decryptResult').value = result;
+                console.log('解密成功:', result);
+            } catch (error) {
+                document.getElementById('decryptResult').value = '解密失败: ' + error.message;
+                console.error('解密错误:', error);
+            }
+        }
+
+        // 原网站的解密函数（保持不变）
+        function decryptAesBCB(encryptedData) {
+            var dataArr = encryptedData.split("");
+            var prefixCode = CryptoJS.enc.Utf8.parse("$#").toString();
+            var suffixCode = CryptoJS.enc.Utf8.parse("#$").toString();
+            var pwdMix = dataArr.splice(0, encryptedData.indexOf(suffixCode) + 4).join("");
+            var roundtimeInHax = dataArr.splice(dataArr.length - 26, 26).join("");
+            var encryptedText = dataArr.join("");
+            var pwdInHax = pwdMix.substring(prefixCode.length, pwdMix.length - suffixCode.length);
+            var roundTime = CryptoJS.enc.Utf8.stringify(CryptoJS.enc.Hex.parse(roundtimeInHax));
+            var pwd = CryptoJS.enc.Utf8.stringify(CryptoJS.enc.Hex.parse(pwdInHax));
+            var iv = CryptoJS.enc.Utf8.parse(roundTime.padEnd(16, "0"));
+            var pkBlocks = CryptoJS.enc.Utf8.parse(pwd.padEnd(16, "0"));
+            var cipherParams = CryptoJS.lib.CipherParams.create({
+                ciphertext: CryptoJS.enc.Hex.parse(encryptedText),
+            });
+            var decryptedData = CryptoJS.enc.Utf8.stringify(
+                CryptoJS.AES.decrypt(cipherParams, pkBlocks, {
+                    iv: iv,
+                    mode: CryptoJS.mode.CBC,
+                    padding: CryptoJS.pad.Pkcs7,
+                })
+            );
+            return decryptedData;
+        }
+
+        // ==================== 工具函数 ====================
+        // 字符串转Hex
+        function stringToHex(str) {
+            return CryptoJS.enc.Hex.stringify(CryptoJS.enc.Utf8.parse(str));
+        }
+
+        // 复制文本
+        function copyResult(elementId) {
+            const textarea = document.getElementById(elementId);
+            textarea.select();
+            document.execCommand('copy');
+            alert('已复制到剪贴板');
+        }
+
+        // 测试功能
+        function testEncryption() {
+            const testText = "Hello, 这是一个测试消息！";
+            const testKey = "123456";
+            
+            document.getElementById('plaintext').value = testText;
+            document.getElementById('encryptKey').value = testKey;
+            
+            // 自动加密
+            encryptText();
+            
+            // 稍后自动解密
+            setTimeout(() => {
+                decryptText();
+                
+                const original = testText;
+                const decrypted = document.getElementById('decryptResult').value;
+                
+                const testResult = document.getElementById('testResult');
+                if (original === decrypted) {
+                    testResult.innerHTML = '<p style="color: green;">✅ 测试成功！加密解密功能正常</p>';
+                } else {
+                    testResult.innerHTML = '<p style="color: red;">❌ 测试失败！加密解密结果不一致</p>';
+                }
+            }, 500);
+        }
+
+        // 清空所有
+        function clearAll() {
+            document.getElementById('plaintext').value = '';
+            document.getElementById('ciphertext').value = '';
+            document.getElementById('decryptCiphertext').value = '';
+            document.getElementById('decryptResult').value = '';
+            document.getElementById('testResult').innerHTML = '';
+        }
+
+        // 页面加载后的初始化
+        window.onload = function() {
+            // 可以在这里添加一些示例文本
+            document.getElementById('plaintext').placeholder = '例如: Hello World!\n或者: 这是一段测试文本';
+            document.getElementById('decryptCiphertext').placeholder = '例如: 24233132333435362324...';
+        };
+    </script>
+</body>
+</html>
